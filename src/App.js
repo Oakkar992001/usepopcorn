@@ -183,6 +183,9 @@ function Logo() {
 }
 function Input({ setQuery, query }) {
   // const [query, setQuery] = useState("");
+
+  // alert error
+
   return (
     <input
       className="search"
@@ -443,7 +446,10 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
                   )}
                 </>
               ) : (
-                <span>You rated this movie with{watchedUserrating} </span>
+                // css
+                <span className="test">
+                  You rated this movie with{watchedUserrating}{" "}
+                </span>
               )}
             </div>
             <p>
