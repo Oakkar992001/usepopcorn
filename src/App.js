@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import StarComponent from "./StarComponent";
+import { useMovies } from "./useMovies";
+import { useLocalStorageState } from "./useLocalStorageState";
+import { useKey } from "./useKey";
 // const tempMovieData = [
 //   {
 //     imdbID: "tt1375666",
@@ -55,12 +58,14 @@ const KEY = "db797aaa";
 //
 
 export default function App() {
-  const [movies, setMovies] = useState([]);
-  const [watched, setWatched] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [watched, setWatched] = useLocalStorageState([], "watched");
+  // const [watched, setWatched] = useState(function () {
+  //   const storedValue = localStorage.getItem("watched");
+  //   return storedValue ? JSON.parse(storedValue) : [];
+  // });
+  const { movies, isLoading, error } = useMovies(query, handleBackButton);
+
   // state for selectedID
   const [selectedID, setSelectedID] = useState(null);
   // function for selectedID
@@ -80,55 +85,13 @@ export default function App() {
   function handleDeleteWatched(id) {
     setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
   }
+  // useEffect(
+  //   function () {
+  //     localStorage.setItem("watched", JSON.stringify(watched));
+  //   },
+  //   [watched],
+  // );
 
-  // using useEffect for fetching movies with query
-  useEffect(
-    function () {
-      const controller = new AbortController();
-      async function fetchMovies() {
-        try {
-          // loading true before fetching
-          setIsLoading(true);
-          setError("");
-          //
-
-          const res = await fetch(
-            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
-            { signal: controller.signal }
-          );
-          // in case Error
-          if (!res.ok) throw new Error("Error in loading movies");
-          //
-          const data = await res.json();
-          if (data.Response === "False") throw new Error("Movie Not Found");
-          // set data into the Movie Array
-          setMovies(data.Search);
-          setError("");
-          //
-        } catch (err) {
-          if (err.name !== "AbortError") {
-            console.log(err.message);
-            setMovies([]);
-          }
-        } finally {
-          // After fetching set loading False
-          setIsLoading(false);
-        }
-      }
-      if (query.length < 3) {
-        setMovies([]);
-        setError("");
-        return;
-      }
-      handleBackButton();
-      fetchMovies();
-      return function () {
-        controller.abort();
-      };
-    },
-    [query]
-  );
-  //
   return (
     <>
       <NavBar setQuery={setQuery} query={query}>
@@ -183,9 +146,30 @@ function Logo() {
 }
 function Input({ setQuery, query }) {
   // const [query, setQuery] = useState("");
-
+  useKey("Enter", function () {
+    if (document.activeElement === inputEl.current) return;
+    inputEl.current.focus();
+    setQuery("");
+  });
   // alert error
-
+  const inputEl = useRef(null);
+  // useEffect(
+  //   function () {
+  //     // console.log(inputEl.current);
+  //     function callback(e) {
+  //       if (document.activeElement === inputEl.current) return;
+  //       if (e.code === "Enter") {
+  //         inputEl.current.focus();
+  //         setQuery("");
+  //       }
+  //     }
+  //     document.addEventListener("keydown", callback);
+  //     return () => {
+  //       document.addEventListener("keydown", callback);
+  //     };
+  //   },
+  //   [setQuery],
+  // );
   return (
     <input
       className="search"
@@ -193,6 +177,7 @@ function Input({ setQuery, query }) {
       placeholder="Search movies..."
       value={query}
       onChange={(e) => setQuery(e.target.value)}
+      ref={inputEl}
     />
   );
 }
@@ -331,9 +316,16 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
   const [movieDetails, setMovieDetails] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [userRating, setUserRating] = useState("");
+  const countRef = useRef(0);
+  useEffect(
+    function () {
+      if (userRating) countRef.current = countRef.current + 1;
+    },
+    [userRating],
+  );
   const isWatched = watched.map((movie) => movie.imdbID).includes(selectedID);
   const watchedUserrating = watched.find(
-    (movie) => movie.imdbID === selectedID
+    (movie) => movie.imdbID === selectedID,
   )?.userRating;
   const {
     Actors: actors,
@@ -347,6 +339,7 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
     Plot: plot,
     Released: released,
   } = movieDetails;
+  useKey("Escape", handleBackButton);
   useEffect(
     function () {
       function callback(e) {
@@ -359,14 +352,14 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
         document.removeEventListener("keydown", callback);
       };
     },
-    [handleBackButton]
+    [handleBackButton],
   );
   useEffect(
     function () {
       setIsLoading(true);
       async function fetchMovieByID() {
         const res = await fetch(
-          `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedID}`
+          `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedID}`,
         );
 
         const data = await res.json();
@@ -377,7 +370,7 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
 
       fetchMovieByID();
     },
-    [selectedID]
+    [selectedID],
   );
   useEffect(
     function () {
@@ -388,7 +381,7 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
         document.title = "usePopcorn";
       };
     },
-    [selectedID]
+    [selectedID, title],
   );
   function handleAddButton() {
     const newWatchedMovie = {
@@ -399,6 +392,7 @@ function DetailMovie({ selectedID, handleBackButton, onAddWatched, watched }) {
       imdbRating: Number(imdbRating),
       runtime: Number(runtime.split("").at(0)),
       userRating,
+      countRatingtime: countRef.current,
     };
     onAddWatched(newWatchedMovie);
     handleBackButton();
